@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.pyo
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Environment variables
+.env
+
+# PyCharm / VSCode
+.idea/
+.vscode/
+
+# Compiled models — too large for GitHub (download separately)
+models/*.onnx
+models/*.dat
+models/*.caffemodel
+
+# SQLite local database
+*.db
+*.sqlite3
+
+# Generated reports and face crops
+static/reports/
+static/unknown_faces/
+static/enrolled_faces/
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Pytest cache
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Logs
+*.log

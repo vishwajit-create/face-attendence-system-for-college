@@ -1,0 +1,108 @@
+﻿{% extends 'base.html' %}
+{% block title %}Edit Teacher{% endblock %}
+{% block page_title %}Edit Teacher{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <!-- Breadcrumb -->
+  <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+    <a href="{{ url_for('super_admin.teachers') }}" class="hover:text-blue-400 transition-colors">
+      <i class="fas fa-chalkboard-teacher mr-1"></i>Teachers
+    </a>
+    <i class="fas fa-chevron-right text-xs"></i>
+    <span class="text-gray-300">Edit Teacher</span>
+  </nav>
+
+  <div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700">
+    <!-- Header -->
+    <div class="flex items-center gap-4 px-6 py-5 border-b border-gray-700">
+      <div class="w-12 h-12 rounded-full bg-indigo-600/30 flex items-center justify-center flex-shrink-0">
+        <span class="text-indigo-400 text-xl font-bold">{{ teacher.full_name[0].upper() }}</span>
+      </div>
+      <div>
+        <h2 class="text-white font-semibold text-lg">{{ teacher.full_name }}</h2>
+        <p class="text-gray-500 text-xs mt-0.5 font-mono">@{{ teacher.username }}</p>
+      </div>
+    </div>
+
+    <div class="p-6">
+      <form method="POST" action="{{ url_for('super_admin.edit_teacher', teacher_id=teacher.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+          <!-- Full Name -->
+          <div class="md:col-span-2">
+            <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">
+              Full Name <span class="text-red-400">*</span>
+            </label>
+            <input type="text" name="full_name" value="{{ teacher.full_name }}" required
+              class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+          </div>
+
+          <!-- Email -->
+          <div>
+            <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">
+              Email <span class="text-red-400">*</span>
+            </label>
+            <input type="email" name="email" value="{{ teacher.email }}" required
+              class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+          </div>
+
+          <!-- Password -->
+          <div>
+            <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">
+              New Password <span class="text-gray-500 font-normal normal-case">(leave blank to keep current)</span>
+            </label>
+            <input type="password" name="password" placeholder="••••••••"
+              class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+          </div>
+        </div>
+
+        <!-- Class Assignments -->
+        <div>
+          <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-3">
+            <i class="fas fa-chalkboard mr-1"></i>Assigned Classes
+          </label>
+          {% if classes %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-4 bg-gray-900/50 rounded-xl border border-gray-700">
+              {% for cls in classes %}
+              <label class="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-700/50 cursor-pointer transition-colors group">
+                <input type="checkbox" name="class_ids" value="{{ cls.id }}"
+                  {% if cls.id in assigned_ids %}checked{% endif %}
+                  class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-gray-900 cursor-pointer">
+                <div>
+                  <span class="text-gray-200 text-sm font-medium group-hover:text-white transition-colors">{{ cls.name }}</span>
+                  <span class="block text-gray-500 text-xs font-mono">{{ cls.code }}</span>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-gray-500 text-sm italic p-3 bg-gray-900/30 rounded-lg border border-gray-700">No classes available.</p>
+          {% endif %}
+        </div>
+
+        <!-- Info box -->
+        <div class="mt-5 p-4 bg-amber-900/20 border border-amber-600/30 rounded-xl flex items-start gap-3">
+          <i class="fas fa-key text-amber-400 mt-0.5 flex-shrink-0"></i>
+          <p class="text-amber-300 text-xs leading-relaxed">
+            If you change the password, the teacher will need to use the new password on their next login.
+          </p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-3 mt-6 pt-5 border-t border-gray-700">
+          <button type="submit"
+            class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors duration-200 flex items-center gap-2">
+            <i class="fas fa-save"></i> Save Changes
+          </button>
+          <a href="{{ url_for('super_admin.teachers') }}"
+            class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors duration-200 flex items-center gap-2">
+            <i class="fas fa-arrow-left"></i> Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

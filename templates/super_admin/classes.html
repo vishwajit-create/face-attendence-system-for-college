@@ -1,0 +1,164 @@
+﻿{% extends 'base.html' %}
+{% block title %}Classes{% endblock %}
+{% block page_title %}Classes{% endblock %}
+
+{% block content %}
+<!-- Add Class Toggle -->
+<div class="mb-6">
+  <button onclick="toggleAddForm()" id="toggle-btn"
+    class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors duration-200 shadow-lg">
+    <i class="fas fa-plus" id="toggle-icon"></i>
+    <span id="toggle-text">Add Class</span>
+  </button>
+</div>
+
+<!-- Add Class Form (collapsible) -->
+<div id="add-form" class="hidden mb-8">
+  <div class="bg-gray-800 rounded-2xl shadow-lg border border-blue-600/40">
+    <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-700">
+      <i class="fas fa-plus-circle text-blue-400"></i>
+      <h2 class="text-white font-semibold text-lg">Add New Class</h2>
+    </div>
+    <div class="p-6">
+      <form method="POST" action="{{ url_for('super_admin.add_class') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div>
+            <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Class Name <span class="text-red-400">*</span></label>
+            <input type="text" name="name" required placeholder="e.g. Data Structures"
+              class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+          </div>
+          <div>
+            <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Class Code <span class="text-red-400">*</span></label>
+            <input type="text" name="code" required placeholder="e.g. CS301"
+              class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+          </div>
+          <div>
+            <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Department <span class="text-red-400">*</span></label>
+            <select name="department_id" required
+              class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+              <option value="" disabled selected>Select department...</option>
+              {% for dept in departments %}
+                <option value="{{ dept.id }}">{{ dept.name }}{% if dept.code %} ({{ dept.code }}){% endif %}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">Semester <span class="text-red-400">*</span></label>
+            <select name="semester" required
+              class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+              <option value="" disabled selected>Select semester...</option>
+              {% for i in range(1, 9) %}
+                <option value="{{ i }}">Semester {{ i }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <div class="flex gap-3 mt-6">
+          <button type="submit"
+            class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors duration-200 flex items-center gap-2">
+            <i class="fas fa-save"></i> Save Class
+          </button>
+          <button type="button" onclick="toggleAddForm()"
+            class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors duration-200">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Classes Table -->
+<div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700">
+  <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-chalkboard text-blue-400"></i>
+      <h2 class="text-white font-semibold text-lg">All Classes</h2>
+    </div>
+    <span class="text-gray-400 text-sm">{{ classes | length }} total</span>
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-gray-900/60">
+          <th class="text-left px-6 py-3 text-gray-400 font-semibold uppercase tracking-wider text-xs">Code</th>
+          <th class="text-left px-6 py-3 text-gray-400 font-semibold uppercase tracking-wider text-xs">Name</th>
+          <th class="text-left px-6 py-3 text-gray-400 font-semibold uppercase tracking-wider text-xs">Department</th>
+          <th class="text-left px-6 py-3 text-gray-400 font-semibold uppercase tracking-wider text-xs">Semester</th>
+          <th class="text-left px-6 py-3 text-gray-400 font-semibold uppercase tracking-wider text-xs">Assigned Teachers</th>
+          <th class="text-left px-6 py-3 text-gray-400 font-semibold uppercase tracking-wider text-xs">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-700">
+        {% if classes %}
+          {% for c in classes %}
+          <tr class="hover:bg-gray-700/40 transition-colors duration-150">
+            <td class="px-6 py-4">
+              <span class="font-mono text-xs bg-gray-700 text-blue-300 px-2.5 py-1 rounded-md font-semibold">{{ c.code }}</span>
+            </td>
+            <td class="px-6 py-4 text-white font-medium">{{ c.name }}</td>
+            <td class="px-6 py-4 text-gray-400">{{ c.dept_name }}</td>
+            <td class="px-6 py-4">
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+                <i class="fas fa-layer-group text-[10px]"></i> Sem {{ c.semester }}
+              </span>
+            </td>
+            <td class="px-6 py-4">
+              {% if c.teachers %}
+                <span class="text-gray-300 text-xs">{{ c.teachers }}</span>
+              {% else %}
+                <span class="text-gray-600 text-xs italic">None assigned</span>
+              {% endif %}
+            </td>
+            <td class="px-6 py-4">
+              <div class="flex items-center gap-2">
+                <a href="{{ url_for('super_admin.edit_class', class_id=c.id) }}"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-600/40 hover:border-blue-600 rounded-lg text-xs font-semibold transition-all duration-200">
+                  <i class="fas fa-edit"></i> Edit
+                </a>
+                <form method="POST" action="{{ url_for('super_admin.delete_class', class_id=c.id) }}"
+                  onsubmit="return confirm('Delete class \'{{ c.name }}\'?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+                  <button type="submit"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-600/40 hover:border-red-600 rounded-lg text-xs font-semibold transition-all duration-200">
+                    <i class="fas fa-trash-alt"></i> Delete
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="6" class="px-6 py-16 text-center">
+              <div class="flex flex-col items-center gap-3">
+                <i class="fas fa-chalkboard text-gray-600 text-4xl"></i>
+                <p class="text-gray-500">No classes found. Add one above.</p>
+              </div>
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function toggleAddForm() {
+  const form = document.getElementById('add-form');
+  const icon = document.getElementById('toggle-icon');
+  const text = document.getElementById('toggle-text');
+  const isHidden = form.classList.contains('hidden');
+  form.classList.toggle('hidden');
+  if (isHidden) {
+    icon.className = 'fas fa-times';
+    text.textContent = 'Cancel';
+  } else {
+    icon.className = 'fas fa-plus';
+    text.textContent = 'Add Class';
+  }
+}
+</script>
+{% endblock %}

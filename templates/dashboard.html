@@ -1,0 +1,503 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Face Attendance AI{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Top Action Bar -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-800/40 p-4 rounded-2xl border border-slate-700/50">
+        <div class="flex items-center space-x-3">
+            <span class="text-sm font-semibold text-slate-400">Active Session:</span>
+            <form method="GET" action="{{ url_for('main.dashboard') }}" class="flex items-center space-x-2">
+                <select name="session_id" onchange="this.form.submit()" 
+                        class="bg-slate-700/80 border border-slate-600 rounded-lg px-3 py-1.5 text-sm font-medium text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    {% for sess in sessions %}
+                        <option value="{{ sess.id }}" {% if sess.id == active_session_id %}selected{% endif %}>
+                            {{ sess.label or sess.id }}
+                        </option>
+                    {% else %}
+                        <option value="{{ active_session_id }}">{{ active_session_id }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            <button onclick="document.getElementById('newSessionModal').classList.remove('hidden')" 
+                    class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-200 rounded-lg border border-slate-600 flex items-center space-x-1.5 transition">
+                <i class="fa-solid fa-plus"></i>
+                <span>New Session</span>
+            </button>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <a href="{{ url_for('main.session_export', session_id=active_session_id) }}" 
+               class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-emerald-600/20 transition flex items-center space-x-2">
+                <i class="fa-solid fa-file-excel"></i>
+                <span>Export to Excel</span>
+            </a>
+            <a href="{{ url_for('main.enroll') }}" 
+               class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center space-x-2">
+                <i class="fa-solid fa-user-plus"></i>
+                <span>Enroll New Person</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Alert if no one is enrolled yet -->
+    {% if total_enrolled == 0 %}
+    <div class="bg-amber-950/60 border border-amber-500/50 rounded-2xl p-4 text-amber-200 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <i class="fa-solid fa-triangle-exclamation text-xl text-amber-400"></i>
+            <div>
+                <p class="font-bold text-sm">No faces are enrolled yet!</p>
+                <p class="text-xs text-amber-300/80">To take attendance, register yourself or your students first so the AI can recognize them.</p>
+            </div>
+        </div>
+        <a href="{{ url_for('main.enroll') }}" class="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg shadow transition">
+            Enroll Now &rarr;
+        </a>
+    </div>
+    {% endif %}
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-slate-800/60 border border-slate-700/60 p-5 rounded-2xl flex items-center justify-between">
+            <div>
+                <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Total Enrolled</p>
+                <h3 class="text-2xl font-black text-white mt-1">{{ total_enrolled }}</h3>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center text-xl">
+                <i class="fa-solid fa-users"></i>
+            </div>
+        </div>
+
+        <div class="bg-slate-800/60 border border-slate-700/60 p-5 rounded-2xl flex items-center justify-between">
+            <div>
+                <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Present (This Session)</p>
+                <h3 class="text-2xl font-black text-emerald-400 mt-1" id="statPresentCount">{{ total_present }}</h3>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-emerald-600/20 text-emerald-400 flex items-center justify-center text-xl">
+                <i class="fa-solid fa-user-check"></i>
+            </div>
+        </div>
+
+        <div class="bg-slate-800/60 border border-slate-700/60 p-5 rounded-2xl flex items-center justify-between">
+            <div>
+                <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Unknown Faces</p>
+                <h3 class="text-2xl font-black text-amber-400 mt-1">{{ total_unknown }}</h3>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-amber-600/20 text-amber-400 flex items-center justify-center text-xl">
+                <i class="fa-solid fa-user-secret"></i>
+            </div>
+        </div>
+
+        <div class="bg-slate-800/60 border border-slate-700/60 p-5 rounded-2xl flex items-center justify-between">
+            <div>
+                <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Match Threshold</p>
+                <h3 class="text-2xl font-black text-violet-400 mt-1">{{ match_threshold }}</h3>
+                <span class="text-[10px] text-slate-400">Youden's J Optimized</span>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-violet-600/20 text-violet-400 flex items-center justify-center text-xl">
+                <i class="fa-solid fa-sliders"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Live Stream + Attendance Table Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <!-- Live Video Stream Panel -->
+        <div class="lg:col-span-5 bg-slate-800/60 border border-slate-700/60 rounded-2xl overflow-hidden shadow-xl flex flex-col">
+            <div class="p-3.5 border-b border-slate-700/60 flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <h2 class="text-xs font-bold text-white tracking-wide uppercase">Live Face Attendance Scanner</h2>
+                </div>
+                <!-- Camera Source Switcher -->
+                <div class="flex space-x-1 bg-slate-900/80 p-0.5 rounded-lg border border-slate-700 text-[11px]">
+                    <button type="button" id="btnModeWebcam" onclick="setCameraMode('browser')"
+                            class="px-2 py-0.5 rounded bg-indigo-600 text-white font-semibold transition">
+                        Webcam
+                    </button>
+                    <button type="button" id="btnModeServer" onclick="setCameraMode('server')"
+                            class="px-2 py-0.5 rounded text-slate-400 hover:text-white font-semibold transition">
+                        Server Stream
+                    </button>
+                </div>
+            </div>
+
+            <!-- Video Viewport -->
+            <div class="relative bg-black aspect-video flex items-center justify-center overflow-hidden">
+                <!-- Browser Webcam View -->
+                <div id="browserCameraWrapper" class="w-full h-full relative flex items-center justify-center">
+                    <video id="liveVideo" autoplay playsinline muted class="w-full h-full object-cover hidden"></video>
+                    <canvas id="overlayCanvas" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+                    
+                    <div id="scannerStandby" class="text-center p-6 space-y-3">
+                        <div class="w-16 h-16 mx-auto rounded-full bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 text-2xl">
+                            <i class="fa-solid fa-video"></i>
+                        </div>
+                        <div>
+                            <h4 class="text-sm font-bold text-white">Browser Camera Scanner</h4>
+                            <p class="text-xs text-slate-400 mt-1 max-w-xs">Click below to start live attendance scanning directly through your webcam.</p>
+                        </div>
+                        <button type="button" onclick="startBrowserScanner()"
+                                class="px-5 py-2 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center space-x-2 mx-auto">
+                            <i class="fa-solid fa-power-off"></i>
+                            <span>Start Camera Scanner</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Server MJPEG Stream View (Alternative) -->
+                <div id="serverStreamWrapper" class="w-full h-full hidden relative flex items-center justify-center">
+                    <img id="serverMjpeg" src="{{ url_for('main.video_feed') }}" 
+                         alt="Server Live Stream" 
+                         class="w-full h-full object-contain"
+                         onerror="this.onerror=null; this.src='data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'640\' height=\'480\'><rect width=\'640\' height=\'480\' fill=\'%23111827\'/><text x=\'50%\' y=\'50%\' fill=\'%239CA3AF\' dominant-baseline=\'middle\' text-anchor=\'middle\'>Server Stream Standby</text></svg>';">
+                </div>
+
+                <!-- Live Status Toast Overlay -->
+                <div id="recognitionToast" class="hidden absolute top-3 left-3 right-3 bg-emerald-600/90 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-lg flex items-center justify-between backdrop-blur">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-circle-check text-sm"></i>
+                        <span id="toastMessage">Recognized &amp; Marked Present!</span>
+                    </div>
+                    <span class="text-[10px] bg-emerald-800 px-1.5 py-0.5 rounded font-mono">Present</span>
+                </div>
+            </div>
+
+            <!-- Footer Info -->
+            <div class="p-3.5 bg-slate-800/80 border-t border-slate-700/60 text-xs text-slate-400 space-y-1.5">
+                <div class="flex justify-between items-center">
+                    <span>AI Detection &amp; Embedding:</span>
+                    <span class="text-indigo-400 font-semibold">OpenCV YuNet + ArcFace</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span>Anti-Spoof Liveness Check:</span>
+                    <span class="text-emerald-400 font-semibold">Soukupová &amp; Čech EAR</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span>Scanner Status:</span>
+                    <span id="scannerStatusText" class="text-slate-400 font-mono">Ready to scan</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attendance Logs Table Panel -->
+        <div class="lg:col-span-7 bg-slate-800/60 border border-slate-700/60 rounded-2xl shadow-xl flex flex-col">
+            <div class="p-4 border-b border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-clipboard-list text-indigo-400"></i>
+                    <h2 class="text-sm font-bold text-white tracking-wide uppercase">Session Attendance Log</h2>
+                    <span id="attendanceBadgeCount" class="text-xs bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded-full font-semibold border border-indigo-700/50">
+                        {{ attendance_logs|length }} Logged
+                    </span>
+                </div>
+                <!-- Search Input -->
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-slate-400"></i>
+                    <input type="text" id="logSearch" placeholder="Search name or roll no..."
+                           class="bg-slate-700/80 border border-slate-600 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none w-full sm:w-56">
+                </div>
+            </div>
+
+            <div class="overflow-x-auto max-h-[500px]">
+                <table class="w-full text-left text-sm" id="attendanceTable">
+                    <thead class="bg-slate-800/90 text-slate-400 text-xs uppercase font-semibold border-b border-slate-700 sticky top-0 backdrop-blur">
+                        <tr>
+                            <th class="px-4 py-3">#</th>
+                            <th class="px-4 py-3">Student / Person</th>
+                            <th class="px-4 py-3">Roll No</th>
+                            <th class="px-4 py-3">Role</th>
+                            <th class="px-4 py-3">Time</th>
+                            <th class="px-4 py-3">Similarity</th>
+                            <th class="px-4 py-3 text-right">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTbody" class="divide-y divide-slate-700/50 text-slate-300 font-normal">
+                        {% for row in attendance_logs %}
+                            <tr class="hover:bg-slate-700/40 transition log-row" data-person-id="{{ row.person_id }}">
+                                <td class="px-4 py-3 font-mono text-xs text-slate-400 row-index">{{ loop.index }}</td>
+                                <td class="px-4 py-3 font-semibold text-white person-name">{{ row.name }}</td>
+                                <td class="px-4 py-3 font-mono text-xs text-slate-300 person-roll">{{ row.roll_no or '—' }}</td>
+                                <td class="px-4 py-3 text-xs capitalize">
+                                    <span class="px-2 py-0.5 rounded bg-slate-700 text-slate-300">{{ row.role }}</span>
+                                </td>
+                                <td class="px-4 py-3 text-xs text-slate-400 font-mono">{{ row.marked_at }}</td>
+                                <td class="px-4 py-3 text-xs font-semibold text-indigo-400">
+                                    {% if row.confidence %}
+                                        {{ "%.1f"|format(row.confidence * 100) }}%
+                                    {% else %}
+                                        100%
+                                    {% endif %}
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-950 text-emerald-300 border border-emerald-700/50">
+                                        <i class="fa-solid fa-check text-[9px] mr-1"></i> Present
+                                    </span>
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr id="emptyTableRow">
+                                <td colspan="7" class="px-4 py-12 text-center text-slate-500">
+                                    <i class="fa-regular fa-folder-open text-3xl mb-2 block"></i>
+                                    No attendance records logged for this session yet.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Session Modal -->
+<div id="newSessionModal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+            <h3 class="text-base font-bold text-white">Create / Activate New Session</h3>
+            <button onclick="document.getElementById('newSessionModal').classList.add('hidden')" class="text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('main.create_session') }}" class="space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Session ID / Code</label>
+                <input type="text" name="session_id" required placeholder="e.g. CS101-2026-09-28-10AM"
+                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Session Label / Description</label>
+                <input type="text" name="label" placeholder="e.g. Data Structures Lecture - Morning"
+                       class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            </div>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button type="button" onclick="document.getElementById('newSessionModal').classList.add('hidden')"
+                        class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold rounded-lg">
+                    Cancel
+                </button>
+                <button type="submit" 
+                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-lg shadow-md shadow-indigo-600/30">
+                    Activate Session
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let activeMode = 'browser';
+    let browserStream = null;
+    let scanInterval = null;
+    let isScanning = false;
+    const sessionId = "{{ active_session_id }}";
+
+    function setCameraMode(mode) {
+        activeMode = mode;
+        const btnWebcam = document.getElementById('btnModeWebcam');
+        const btnServer = document.getElementById('btnModeServer');
+        const browserWrap = document.getElementById('browserCameraWrapper');
+        const serverWrap = document.getElementById('serverStreamWrapper');
+
+        if (mode === 'browser') {
+            browserWrap.classList.remove('hidden');
+            serverWrap.classList.add('hidden');
+            btnWebcam.className = "px-2 py-0.5 rounded bg-indigo-600 text-white font-semibold transition";
+            btnServer.className = "px-2 py-0.5 rounded text-slate-400 hover:text-white font-semibold transition";
+        } else {
+            browserWrap.classList.add('hidden');
+            serverWrap.classList.remove('hidden');
+            btnServer.className = "px-2 py-0.5 rounded bg-indigo-600 text-white font-semibold transition";
+            btnWebcam.className = "px-2 py-0.5 rounded text-slate-400 hover:text-white font-semibold transition";
+        }
+    }
+
+    async function startBrowserScanner() {
+        const video = document.getElementById('liveVideo');
+        const standby = document.getElementById('scannerStandby');
+        const statusText = document.getElementById('scannerStatusText');
+
+        try {
+            statusText.textContent = "Connecting to camera...";
+            browserStream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 640 }, height: { ideal: 480 } }
+            });
+            video.srcObject = browserStream;
+            video.classList.remove('hidden');
+            standby.classList.add('hidden');
+            statusText.textContent = "Scanner active — Scanning faces...";
+            statusText.classList.replace('text-slate-400', 'text-emerald-400');
+
+            // Begin continuous scan loop every 650ms
+            if (!scanInterval) {
+                scanInterval = setInterval(scanCurrentFrame, 650);
+            }
+        } catch (err) {
+            statusText.textContent = "Camera Error: " + err.message;
+            statusText.classList.replace('text-slate-400', 'text-rose-400');
+            alert("Could not access browser webcam: " + err.message);
+        }
+    }
+
+    // Temporary off-screen canvas for capturing frames
+    const captureCanvas = document.createElement('canvas');
+
+    async function scanCurrentFrame() {
+        if (isScanning || !browserStream) return;
+        const video = document.getElementById('liveVideo');
+        const canvas = document.getElementById('overlayCanvas');
+        if (video.videoWidth === 0) return;
+
+        isScanning = true;
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
+        const ctxCap = captureCanvas.getContext('2d');
+        ctxCap.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+
+        const dataUrl = captureCanvas.toDataURL('image/jpeg', 0.85);
+
+        try {
+            const res = await fetch('/api/scan_frame', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: dataUrl, session_id: sessionId })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                drawOverlays(data.faces || [], video.videoWidth, video.videoHeight);
+            }
+        } catch (e) {
+            // Ignore frame scan drops
+        } finally {
+            isScanning = false;
+        }
+    }
+
+    function drawOverlays(faces, vw, vh) {
+        const canvas = document.getElementById('overlayCanvas');
+        const video = document.getElementById('liveVideo');
+        canvas.width = video.clientWidth;
+        canvas.height = video.clientHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const scaleX = canvas.width / vw;
+        const scaleY = canvas.height / vh;
+
+        faces.forEach(face => {
+            if (!face.box) return;
+            const [x, y, w, h] = face.box;
+            const bx = x * scaleX;
+            const by = y * scaleY;
+            const bw = w * scaleX;
+            const bh = h * scaleY;
+
+            const isRecognized = face.name && face.name !== 'Unknown';
+            const color = isRecognized ? '#10B981' : '#F59E0B';
+
+            // Draw Box
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = color;
+            ctx.strokeRect(bx, by, bw, bh);
+
+            // Draw Label
+            const labelText = isRecognized ? `${face.name} (${Math.round((face.confidence||1)*100)}%)` : 'Unknown Face';
+            ctx.font = 'bold 12px sans-serif';
+            const textWidth = ctx.measureText(labelText).width;
+            ctx.fillStyle = color;
+            ctx.fillRect(bx, Math.max(0, by - 22), textWidth + 12, 22);
+
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillText(labelText, bx + 6, Math.max(14, by - 6));
+
+            // If recognized, trigger UI notification & row addition
+            if (isRecognized && face.marked) {
+                showToast(`Marked Present: ${face.name}`);
+                appendTableRow(face);
+            }
+        });
+    }
+
+    function showToast(msg) {
+        const toast = document.getElementById('recognitionToast');
+        document.getElementById('toastMessage').textContent = msg;
+        toast.classList.remove('hidden');
+        setTimeout(() => {
+            toast.classList.add('hidden');
+        }, 3000);
+    }
+
+    function appendTableRow(person) {
+        const tbody = document.getElementById('attendanceTbody');
+        const emptyRow = document.getElementById('emptyTableRow');
+        if (emptyRow) emptyRow.remove();
+
+        // Check if already in table
+        const existing = tbody.querySelector(`tr[data-person-id="${person.person_id}"]`);
+        if (existing) return;
+
+        const rowCount = tbody.querySelectorAll('tr').length + 1;
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-700/40 transition log-row bg-emerald-950/20";
+        tr.setAttribute('data-person-id', person.person_id);
+
+        const nowStr = new Date().toLocaleTimeString();
+
+        tr.innerHTML = `
+            <td class="px-4 py-3 font-mono text-xs text-slate-400 row-index">${rowCount}</td>
+            <td class="px-4 py-3 font-semibold text-white person-name">${person.name}</td>
+            <td class="px-4 py-3 font-mono text-xs text-slate-300 person-roll">${person.roll_no || '—'}</td>
+            <td class="px-4 py-3 text-xs capitalize"><span class="px-2 py-0.5 rounded bg-slate-700 text-slate-300">student</span></td>
+            <td class="px-4 py-3 text-xs text-slate-400 font-mono">${nowStr}</td>
+            <td class="px-4 py-3 text-xs font-semibold text-emerald-400">${Math.round((person.confidence||1)*100)}%</td>
+            <td class="px-4 py-3 text-right">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-950 text-emerald-300 border border-emerald-700/50">
+                    <i class="fa-solid fa-check text-[9px] mr-1"></i> Present
+                </span>
+            </td>
+        `;
+
+        tbody.prepend(tr);
+
+        // Update counts
+        const countBadge = document.getElementById('attendanceBadgeCount');
+        const statPresent = document.getElementById('statPresentCount');
+        if (countBadge) countBadge.textContent = `${rowCount} Logged`;
+        if (statPresent) statPresent.textContent = `${rowCount}`;
+    }
+
+    // Search filter
+    const searchInput = document.getElementById('logSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase();
+            document.querySelectorAll('.log-row').forEach(row => {
+                const name = row.querySelector('.person-name')?.textContent.toLowerCase() || '';
+                const roll = row.querySelector('.person-roll')?.textContent.toLowerCase() || '';
+                if (name.includes(query) || roll.includes(query)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    }
+
+    // Auto poll attendance every 5 seconds
+    setInterval(async () => {
+        try {
+            const res = await fetch(`/sessions/${encodeURIComponent(sessionId)}/attendance`);
+            if (res.ok) {
+                const data = await res.json();
+                const currentCount = document.querySelectorAll('.log-row').length;
+                if (data.length > currentCount) {
+                    window.location.reload();
+                }
+            }
+        } catch (e) {}
+    }, 5000);
+</script>
+{% endblock %}

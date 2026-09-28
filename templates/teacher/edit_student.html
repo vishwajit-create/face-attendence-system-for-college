@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Edit Student Details — Teacher{% endblock %}
+{% block page_title %}Edit Student Information{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-xl font-bold text-white">Edit Student Details</h2>
+      <p class="text-sm text-gray-400">Update student's name and roll number</p>
+    </div>
+    {% if ref_class_id %}
+    <a href="{{ url_for('teacher.class_detail', class_id=ref_class_id) }}" class="btn-secondary">
+      <i class="fas fa-arrow-left"></i> Back to Class
+    </a>
+    {% else %}
+    <a href="{{ url_for('teacher.dashboard') }}" class="btn-secondary">
+      <i class="fas fa-arrow-left"></i> Back
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <form method="POST" action="{{ url_for('teacher.edit_student', person_id=person.id) }}" class="space-y-5">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+      {% if ref_class_id %}
+      <input type="hidden" name="ref_class_id" value="{{ ref_class_id }}">
+      {% endif %}
+
+      <div>
+        <label class="label">Full Name <span class="text-red-400">*</span></label>
+        <input type="text" name="name" value="{{ person.name }}" required class="input" placeholder="e.g. John Doe">
+      </div>
+
+      <div>
+        <label class="label">Roll Number</label>
+        <input type="text" name="roll_no" value="{{ person.roll_no or '' }}" class="input" placeholder="e.g. CS2026-001">
+      </div>
+
+      <div>
+        <label class="label">Email Address</label>
+        <input type="email" name="email" value="{{ person.email or '' }}" class="input" placeholder="student@college.edu">
+      </div>
+
+      <div class="pt-4 border-t border-gray-700 flex justify-end gap-3">
+        {% if ref_class_id %}
+        <a href="{{ url_for('teacher.class_detail', class_id=ref_class_id) }}" class="btn-secondary">Cancel</a>
+        {% else %}
+        <a href="{{ url_for('teacher.dashboard') }}" class="btn-secondary">Cancel</a>
+        {% endif %}
+        <button type="submit" class="btn-primary">
+          <i class="fas fa-save"></i> Save Changes
+        </button>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

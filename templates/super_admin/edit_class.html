@@ -1,0 +1,104 @@
+﻿{% extends 'base.html' %}
+{% block title %}Edit Class{% endblock %}
+{% block page_title %}Edit Class{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <!-- Breadcrumb -->
+  <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+    <a href="{{ url_for('super_admin.classes') }}" class="hover:text-blue-400 transition-colors">
+      <i class="fas fa-chalkboard mr-1"></i>Classes
+    </a>
+    <i class="fas fa-chevron-right text-xs"></i>
+    <span class="text-gray-300">Edit Class</span>
+  </nav>
+
+  <div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700">
+    <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-700">
+      <div class="w-9 h-9 rounded-lg bg-blue-600/20 flex items-center justify-center">
+        <i class="fas fa-edit text-blue-400"></i>
+      </div>
+      <div>
+        <h2 class="text-white font-semibold text-lg">Edit Class</h2>
+        <p class="text-gray-500 text-xs mt-0.5">Update class details below</p>
+      </div>
+    </div>
+
+    <div class="p-6">
+      <form method="POST" action="{{ url_for('super_admin.edit_class', class_id=cls.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <!-- Class Name -->
+          <div class="md:col-span-2">
+            <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">
+              Class Name <span class="text-red-400">*</span>
+            </label>
+            <input type="text" name="name" value="{{ cls.name }}" required
+              class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+          </div>
+
+          <!-- Class Code -->
+          <div>
+            <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">
+              Class Code <span class="text-red-400">*</span>
+            </label>
+            <input type="text" name="code" value="{{ cls.code }}" required
+              class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+          </div>
+
+          <!-- Department -->
+          <div>
+            <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">
+              Department <span class="text-red-400">*</span>
+            </label>
+            <select name="department_id" required
+              class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+              {% for dept in departments %}
+                <option value="{{ dept.id }}" {% if dept.id == cls.department_id %}selected{% endif %}>
+                  {{ dept.name }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Semester -->
+          <div>
+            <label class="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1.5">
+              Semester <span class="text-red-400">*</span>
+            </label>
+            <select name="semester" required
+              class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors">
+              {% for i in range(1, 9) %}
+                <option value="{{ i }}" {% if i == cls.semester %}selected{% endif %}>
+                  Semester {{ i }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <!-- Info box -->
+        <div class="mt-6 p-4 bg-blue-900/20 border border-blue-600/30 rounded-xl flex items-start gap-3">
+          <i class="fas fa-info-circle text-blue-400 mt-0.5 flex-shrink-0"></i>
+          <p class="text-blue-300 text-xs leading-relaxed">
+            Editing this class will update it for all associated teachers and students. Teacher assignments can be managed in the Teachers section.
+          </p>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex gap-3 mt-6 pt-5 border-t border-gray-700">
+          <button type="submit"
+            class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors duration-200 flex items-center gap-2">
+            <i class="fas fa-save"></i> Save Changes
+          </button>
+          <a href="{{ url_for('super_admin.classes') }}"
+            class="bg-gray-700 hover:bg-gray-600 text-gray-300 font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors duration-200 flex items-center gap-2">
+            <i class="fas fa-arrow-left"></i> Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

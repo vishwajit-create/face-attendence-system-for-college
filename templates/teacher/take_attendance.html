@@ -1,0 +1,497 @@
+{% extends 'base.html' %}
+
+{% block title %}Take Attendance - {{ cls.name }}{% endblock %}
+
+{% block page_title %}Live Attendance{% endblock %}
+
+{% block content %}
+<!-- Toast Container -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+<div class="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
+
+  <!-- Session Info Bar -->
+  <div class="bg-gray-800 border-b border-gray-700 px-6 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-md">
+    <div class="flex items-center gap-4 flex-wrap">
+      <div class="flex items-center gap-2">
+        <span class="relative flex h-2.5 w-2.5">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+        </span>
+        <span class="font-bold text-white text-lg">{{ cls.name }}</span>
+        <span class="text-gray-400 font-mono text-sm">{{ cls.code }}</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-gray-400">
+        <i class="fas fa-tag text-gray-500"></i>
+        <span class="font-mono text-green-300">{{ session.label }}</span>
+      </div>
+      <div class="flex items-center gap-2 text-sm text-gray-400">
+        <i class="fas fa-clock text-gray-500"></i>
+        <span id="session-timer">{{ session.started_at }}</span>
+      </div>
+    </div>
+    <form method="POST"
+          action="{{ url_for('teacher.stop_session', class_id=cls.id, session_id=session.id) }}"
+          onsubmit="return confirm('Stop this attendance session? This will end live scanning.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-lg transition-colors">
+        <i class="fas fa-stop-circle"></i> Stop Session
+      </button>
+    </form>
+  </div>
+
+  <!-- Main Two-Column Layout -->
+  <div class="flex-1 p-4 lg:p-6">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 h-full">
+
+      <!-- ===== LEFT COLUMN: Webcam Scanner ===== -->
+      <div class="flex flex-col gap-4">
+
+        <!-- Camera Card -->
+        <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-lg flex-1">
+          <div class="px-5 py-3 border-b border-gray-700 flex items-center justify-between">
+            <h2 class="font-semibold text-gray-100 flex items-center gap-2">
+              <i class="fas fa-camera text-blue-400"></i> Face Scanner
+            </h2>
+            <span id="scan-status-badge"
+                  class="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700 text-gray-400">
+              Camera Off
+            </span>
+          </div>
+
+          <!-- Video + Canvas Overlay -->
+          <div class="relative bg-black" style="min-height:320px;">
+            <video id="webcam-video"
+                   autoplay playsinline muted
+                   class="w-full h-full object-cover"
+                   style="max-height:420px; display:none;"></video>
+            <canvas id="webcam-canvas"
+                    class="absolute inset-0 w-full h-full"
+                    style="pointer-events:none; display:none;"></canvas>
+
+            <!-- Placeholder when camera is off -->
+            <div id="camera-placeholder"
+                 class="flex flex-col items-center justify-center h-80 text-gray-600">
+              <i class="fas fa-camera text-6xl mb-4 opacity-40"></i>
+              <p class="text-sm opacity-60">Camera is off. Click "Start Camera" to begin scanning.</p>
+            </div>
+
+            <!-- Scanning Indicator -->
+            <div id="scan-indicator"
+                 class="absolute bottom-3 left-3 hidden items-center gap-2 px-3 py-1 bg-black/70 rounded-lg text-xs text-green-300 backdrop-blur">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              Scanning every 1.5s...
+            </div>
+          </div>
+
+          <!-- Camera Controls -->
+          <div class="px-5 py-4 border-t border-gray-700 flex items-center gap-3 flex-wrap">
+            <button id="btn-start-camera"
+                    onclick="startCamera()"
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors">
+              <i class="fas fa-play"></i> Start Camera
+            </button>
+            <button id="btn-stop-camera"
+                    onclick="stopCamera()"
+                    disabled
+                    class="inline-flex items-center gap-2 px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              <i class="fas fa-stop"></i> Stop Camera
+            </button>
+            <span id="scan-status-text" class="text-gray-500 text-sm ml-auto">
+              <i class="fas fa-info-circle"></i> Start the camera to begin scanning faces.
+            </span>
+          </div>
+        </div>
+
+        <!-- Last Scan Result -->
+        <div id="last-scan-box"
+             class="bg-gray-800 border border-gray-700 rounded-xl px-5 py-4 text-sm text-gray-400 hidden">
+          <div class="font-semibold text-gray-200 mb-1 flex items-center gap-2">
+            <i class="fas fa-search text-blue-400"></i> Last Scan Result
+          </div>
+          <div id="last-scan-content" class="text-gray-400"></div>
+        </div>
+
+      </div>
+
+      <!-- ===== RIGHT COLUMN: Student Roster ===== -->
+      <div class="flex flex-col">
+        <div class="bg-gray-800 border border-gray-700 rounded-xl overflow-hidden shadow-lg flex-1 flex flex-col">
+
+          <!-- Roster Header -->
+          <div class="px-5 py-3 border-b border-gray-700 flex items-center justify-between">
+            <h2 class="font-semibold text-gray-100 flex items-center gap-2">
+              <i class="fas fa-users text-blue-400"></i>
+              Student Roster
+              <span class="text-gray-400 text-sm font-normal">({{ enrolled | length }} students)</span>
+            </h2>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-400">Present:</span>
+              <span id="present-count-badge"
+                    class="px-2.5 py-0.5 bg-green-900/60 text-green-300 border border-green-700/50 rounded-full text-sm font-bold font-mono min-w-[2rem] text-center">
+                {{ present_ids | length }}
+              </span>
+              <span class="text-xs text-gray-500">/ {{ enrolled | length }}</span>
+            </div>
+          </div>
+
+          <!-- Student Table -->
+          <div class="overflow-y-auto flex-1" style="max-height: 500px;">
+            <table class="w-full text-sm">
+              <thead class="sticky top-0 z-10">
+                <tr class="bg-gray-700/80 backdrop-blur text-gray-400 uppercase text-xs tracking-wider">
+                  <th class="px-4 py-2.5 text-left">Roll No</th>
+                  <th class="px-4 py-2.5 text-left">Name</th>
+                  <th class="px-4 py-2.5 text-center">Status</th>
+                  <th class="px-4 py-2.5 text-center">Toggle</th>
+                </tr>
+              </thead>
+              <tbody id="student-roster-body" class="divide-y divide-gray-700/60">
+                {% for student in enrolled %}
+                {% set is_present = student.id in present_ids %}
+                <tr id="student-row-{{ student.id }}"
+                    class="transition-colors duration-300 {% if is_present %}bg-green-950/20{% endif %}">
+                  <td class="px-4 py-2.5 font-mono text-gray-400 text-xs">{{ student.roll_no }}</td>
+                  <td class="px-4 py-2.5 font-medium text-white">{{ student.name }}</td>
+                  <td class="px-4 py-2.5 text-center">
+                    <span id="status-{{ student.id }}"
+                          class="{% if is_present %}text-green-400{% else %}text-gray-600{% endif %} text-lg"
+                          title="{% if is_present %}Present{% else %}Absent{% endif %}">
+                      {% if is_present %}
+                      <i class="fas fa-check-circle"></i>
+                      {% else %}
+                      <i class="fas fa-minus-circle"></i>
+                      {% endif %}
+                    </span>
+                  </td>
+                  <td class="px-4 py-2.5 text-center">
+                    <button id="toggle-btn-{{ student.id }}"
+                            onclick="manualToggle({{ student.id }}, '{{ student.name }}')"
+                            class="text-xs px-2 py-1 rounded-md font-medium transition-colors
+                              {% if is_present %}
+                              bg-red-900/40 hover:bg-red-800/60 text-red-300 border border-red-700/40
+                              {% else %}
+                              bg-green-900/40 hover:bg-green-800/60 text-green-300 border border-green-700/40
+                              {% endif %}">
+                      {% if is_present %}
+                      <i class="fas fa-times mr-1"></i>Absent
+                      {% else %}
+                      <i class="fas fa-check mr-1"></i>Present
+                      {% endif %}
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ─── Constants ────────────────────────────────────────────────────────────
+  const SESSION_ID = {{ session.id | tojson }};
+  const CLASS_ID   = {{ cls.id }};
+  let presentIds   = new Set({{ present_ids | list | tojson }});
+
+  // ─── Camera & Scanning State ──────────────────────────────────────────────
+  let mediaStream      = null;
+  let scanInterval     = null;
+  let isScanning       = false;
+
+  const video          = document.getElementById('webcam-video');
+  const canvas         = document.getElementById('webcam-canvas');
+  const ctx            = canvas.getContext('2d');
+  const placeholder    = document.getElementById('camera-placeholder');
+  const scanIndicator  = document.getElementById('scan-indicator');
+  const scanStatusBadge = document.getElementById('scan-status-badge');
+  const scanStatusText  = document.getElementById('scan-status-text');
+  const btnStart       = document.getElementById('btn-start-camera');
+  const btnStop        = document.getElementById('btn-stop-camera');
+
+  // ─── Camera Functions ─────────────────────────────────────────────────────
+
+  async function startCamera() {
+    try {
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' }
+        });
+      } catch (e) {
+        // Fallback to basic video constraint
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
+      video.srcObject = mediaStream;
+      video.style.display = 'block';
+      canvas.style.display = 'block';
+      placeholder.style.display = 'none';
+      scanIndicator.style.display = 'flex';
+      scanStatusBadge.textContent = 'Scanning';
+      scanStatusBadge.className = 'px-2 py-0.5 rounded-full text-xs font-medium bg-green-900/60 text-green-300';
+      scanStatusText.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1"></i> Camera active, scanning every 1.5s...';
+      btnStart.disabled = true;
+      btnStart.classList.add('opacity-40', 'cursor-not-allowed');
+      btnStop.disabled = false;
+      btnStop.classList.remove('opacity-40', 'cursor-not-allowed');
+
+      await video.play();
+
+      video.onloadedmetadata = () => {
+        canvas.width  = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+      };
+
+      isScanning = true;
+      clearInterval(scanInterval);
+      scanInterval = setInterval(scanFrame, 1500);
+    } catch (err) {
+      showToast('Could not access camera: ' + err.message, 'error');
+      scanStatusText.innerHTML = '<i class="fas fa-exclamation-triangle text-red-400 mr-1"></i> Camera access denied or not available. (Check browser permission or open via http://localhost:5000)';
+    }
+  }
+
+  function stopCamera() {
+    isScanning = false;
+    clearInterval(scanInterval);
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(t => t.stop());
+      mediaStream = null;
+    }
+    video.srcObject = null;
+    video.style.display = 'none';
+    canvas.style.display = 'none';
+    placeholder.style.display = 'flex';
+    scanIndicator.style.display = 'none';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    scanStatusBadge.textContent = 'Camera Off';
+    scanStatusBadge.className = 'px-2 py-0.5 rounded-full text-xs font-medium bg-gray-700 text-gray-400';
+    scanStatusText.innerHTML = '<i class="fas fa-info-circle"></i> Start the camera to begin scanning.';
+    btnStart.disabled = false;
+    btnStart.classList.remove('opacity-40', 'cursor-not-allowed');
+    btnStop.disabled = true;
+    btnStop.classList.add('opacity-40', 'cursor-not-allowed');
+  }
+
+  // ─── Frame Scanning ────────────────────────────────────────────────────────
+
+  async function scanFrame() {
+    if (!isScanning || !mediaStream) return;
+    canvas.width  = video.videoWidth  || 640;
+    canvas.height = video.videoHeight || 480;
+
+    // Draw current video frame onto canvas
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Convert canvas to blob
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const formData = new FormData();
+      formData.append('image', blob, 'frame.jpg');
+      formData.append('session_id', SESSION_ID);
+      formData.append('class_id', CLASS_ID);
+
+      try {
+        const res = await fetch('/teacher/api/scan_frame', { method: 'POST', body: formData });
+        if (!res.ok) return;
+        const data = await res.json();
+        const faces = data.faces || [];
+
+        drawBoxes(faces);
+        updateAttendance(faces);
+
+        // Update last scan box
+        const box = document.getElementById('last-scan-box');
+        const content = document.getElementById('last-scan-content');
+        box.classList.remove('hidden');
+        if (faces.length === 0) {
+          content.innerHTML = '<span class="text-gray-500">No faces detected in this frame.</span>';
+        } else {
+          content.innerHTML = faces.map(f => {
+            if (f.person_id && f.in_class) {
+              return `<span class="text-green-400"><i class="fas fa-check-circle mr-1"></i>${f.name}</span>`;
+            } else if (f.person_id) {
+              return `<span class="text-yellow-400"><i class="fas fa-exclamation-circle mr-1"></i>${f.name} (not in class)</span>`;
+            } else {
+              return `<span class="text-red-400"><i class="fas fa-question-circle mr-1"></i>Unknown face</span>`;
+            }
+          }).join('<br>');
+        }
+      } catch (err) {
+        // Silently ignore network errors during scanning
+      }
+    }, 'image/jpeg', 0.8);
+  }
+
+  // ─── Draw Face Boxes ───────────────────────────────────────────────────────
+
+  function drawBoxes(faces) {
+    // Redraw frame first (to clear old boxes)
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    faces.forEach(face => {
+      const { x, y, w, h, name, person_id, in_class } = face;
+      if (x === undefined) return;
+
+      const isRecognized = !!person_id && !!in_class;
+      const isKnownOutside = !!person_id && !in_class;
+
+      // Box color
+      ctx.strokeStyle = isRecognized ? '#22c55e' : isKnownOutside ? '#f59e0b' : '#ef4444';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(x, y, w, h);
+
+      // Label background
+      const label = name || 'Unknown';
+      ctx.font = 'bold 13px Inter, sans-serif';
+      const textWidth = ctx.measureText(label).width;
+      const labelH = 20;
+      ctx.fillStyle = isRecognized ? 'rgba(34,197,94,0.85)' : isKnownOutside ? 'rgba(245,158,11,0.85)' : 'rgba(239,68,68,0.85)';
+      ctx.fillRect(x, y - labelH - 2, textWidth + 10, labelH + 2);
+
+      // Label text
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, x + 5, y - 5);
+    });
+  }
+
+  // ─── Update Attendance State ───────────────────────────────────────────────
+
+  function updateAttendance(faces) {
+    faces.forEach(face => {
+      if (face.person_id && face.in_class) {
+        if (!presentIds.has(face.person_id)) {
+          presentIds.add(face.person_id);
+          markStudentPresent(face.person_id, false); // false = don't call API, already marked server-side
+          showToast(`${face.name} marked present!`, 'success');
+        }
+      }
+    });
+    updatePresentCount();
+  }
+
+  // ─── UI Row Update ────────────────────────────────────────────────────────
+
+  function markStudentPresent(personId, callApi = true) {
+    const row = document.getElementById(`student-row-${personId}`);
+    const statusEl = document.getElementById(`status-${personId}`);
+    const toggleBtn = document.getElementById(`toggle-btn-${personId}`);
+    if (!row) return;
+
+    row.classList.add('bg-green-950/20');
+    statusEl.className = 'text-green-400 text-lg';
+    statusEl.innerHTML = '<i class="fas fa-check-circle"></i>';
+    statusEl.title = 'Present';
+    toggleBtn.className = 'text-xs px-2 py-1 rounded-md font-medium transition-colors bg-red-900/40 hover:bg-red-800/60 text-red-300 border border-red-700/40';
+    toggleBtn.innerHTML = '<i class="fas fa-times mr-1"></i>Absent';
+
+    presentIds.add(personId);
+    updatePresentCount();
+  }
+
+  function markStudentAbsent(personId) {
+    const row = document.getElementById(`student-row-${personId}`);
+    const statusEl = document.getElementById(`status-${personId}`);
+    const toggleBtn = document.getElementById(`toggle-btn-${personId}`);
+    if (!row) return;
+
+    row.classList.remove('bg-green-950/20');
+    statusEl.className = 'text-gray-600 text-lg';
+    statusEl.innerHTML = '<i class="fas fa-minus-circle"></i>';
+    statusEl.title = 'Absent';
+    toggleBtn.className = 'text-xs px-2 py-1 rounded-md font-medium transition-colors bg-green-900/40 hover:bg-green-800/60 text-green-300 border border-green-700/40';
+    toggleBtn.innerHTML = '<i class="fas fa-check mr-1"></i>Present';
+
+    presentIds.delete(personId);
+    updatePresentCount();
+  }
+
+  function updatePresentCount() {
+    document.getElementById('present-count-badge').textContent = presentIds.size;
+  }
+
+  // ─── Manual Toggle ────────────────────────────────────────────────────────
+
+  async function manualToggle(personId, personName) {
+    const isPresent = presentIds.has(personId);
+    const endpoint = isPresent ? '/teacher/api/mark-absent' : '/teacher/api/mark-present';
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: personId, session_id: SESSION_ID, class_id: CLASS_ID })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        showToast('Error: ' + (err.message || 'Unknown error'), 'error');
+        return;
+      }
+
+      if (isPresent) {
+        markStudentAbsent(personId);
+        showToast(`${personName} marked absent.`, 'warning');
+      } else {
+        markStudentPresent(personId, false);
+        showToast(`${personName} marked present!`, 'success');
+      }
+    } catch (err) {
+      showToast('Network error. Please try again.', 'error');
+    }
+  }
+
+  // ─── Toast Notifications ───────────────────────────────────────────────────
+
+  function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+
+    const colorMap = {
+      success: 'bg-green-800 border-green-600 text-green-100',
+      error:   'bg-red-900 border-red-600 text-red-100',
+      warning: 'bg-yellow-900 border-yellow-600 text-yellow-100',
+      info:    'bg-blue-900 border-blue-600 text-blue-100',
+    };
+    const iconMap = {
+      success: 'fa-check-circle text-green-400',
+      error:   'fa-times-circle text-red-400',
+      warning: 'fa-exclamation-triangle text-yellow-400',
+      info:    'fa-info-circle text-blue-400',
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-xl text-sm font-medium max-w-xs
+      ${colorMap[type] || colorMap.info}
+      transform translate-x-0 opacity-0 transition-all duration-300`;
+    toast.innerHTML = `<i class="fas ${iconMap[type] || iconMap.info} shrink-0"></i><span>${message}</span>`;
+    container.appendChild(toast);
+
+    // Animate in
+    requestAnimationFrame(() => {
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateX(0)';
+    });
+
+    // Remove after 3 seconds
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100%)';
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }
+
+  // ─── Cleanup on page unload ────────────────────────────────────────────────
+  window.addEventListener('beforeunload', stopCamera);
+</script>
+{% endblock %}

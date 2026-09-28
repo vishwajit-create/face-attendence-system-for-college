@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+{% block title %}Attendance Reports — Super Admin{% endblock %}
+{% block page_title %}Class-by-Class Attendance Report{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+      <h2 class="text-xl font-bold text-white">Attendance Analytics</h2>
+      <p class="text-sm text-gray-400">Class-wise student attendance records & percentages</p>
+    </div>
+  </div>
+
+  <!-- Class Selector Form -->
+  <div class="card">
+    <form method="GET" action="{{ url_for('super_admin.attendance') }}" class="flex flex-col sm:flex-row gap-4 items-end">
+      <div class="flex-1 w-full">
+        <label class="label">Select Class to Generate Report</label>
+        <select name="class_id" class="input" required>
+          <option value="">-- Choose a Class --</option>
+          {% for c in classes %}
+          <option value="{{ c.id }}" {% if selected_class == c.id %}selected{% endif %}>
+            {{ c.code }} — {{ c.name }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="btn-primary w-full sm:w-auto">
+        <i class="fas fa-chart-line"></i> View Report
+      </button>
+    </form>
+  </div>
+
+  {% if selected_class and report %}
+  <!-- Stats Highlights -->
+  {% set good_count = report | selectattr('percentage', '>=', 75) | list | length %}
+  {% set low_count = report | selectattr('percentage', '<', 75) | selectattr('percentage', '>=', 50) | list | length %}
+  {% set crit_count = report | selectattr('percentage', '<', 50) | list | length %}
+
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="card bg-green-900/20 border-green-800">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-green-600/30 flex items-center justify-center text-green-400">
+          <i class="fas fa-check-double text-lg"></i>
+        </div>
+        <div>
+          <div class="text-2xl font-bold text-white">{{ good_count }}</div>
+          <div class="text-xs text-green-300 font-medium">Eligible (≥ 75%)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-yellow-900/20 border-yellow-800">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-yellow-600/30 flex items-center justify-center text-yellow-400">
+          <i class="fas fa-exclamation-triangle text-lg"></i>
+        </div>
+        <div>
+          <div class="text-2xl font-bold text-white">{{ low_count }}</div>
+          <div class="text-xs text-yellow-300 font-medium">Warning (50% - 74%)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card bg-red-900/20 border-red-800">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-red-600/30 flex items-center justify-center text-red-400">
+          <i class="fas fa-times-circle text-lg"></i>
+        </div>
+        <div>
+          <div class="text-2xl font-bold text-white">{{ crit_count }}</div>
+          <div class="text-xs text-red-300 font-medium">Critical Defaulter (< 50%)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attendance Table -->
+  <div class="card overflow-hidden p-0">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse">
+        <thead class="bg-gray-900 border-b border-gray-700 table-head">
+          <tr>
+            <th>Roll No</th>
+            <th>Student Name</th>
+            <th class="text-center">Attended Sessions</th>
+            <th class="text-center">Total Sessions</th>
+            <th class="text-center">Attendance %</th>
+            <th>Eligibility Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-700">
+          {% for r in report %}
+          <tr class="table-row hover:bg-gray-750 transition-colors">
+            <td class="font-mono text-blue-400 font-semibold">{{ r.roll_no or '—' }}</td>
+            <td class="font-medium text-white">{{ r.name }}</td>
+            <td class="text-center font-bold text-gray-200">{{ r.attended }}</td>
+            <td class="text-center text-gray-400">{{ r.total }}</td>
+            <td class="text-center">
+              <span class="font-bold text-sm {% if r.percentage >= 75 %}text-green-400{% elif r.percentage >= 50 %}text-yellow-400{% else %}text-red-400{% endif %}">
+                {{ r.percentage }}%
+              </span>
+            </td>
+            <td>
+              {% if r.percentage >= 75 %}
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-900/50 text-green-300 border border-green-700">
+                <i class="fas fa-check"></i> Eligible
+              </span>
+              {% elif r.percentage >= 50 %}
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-900/50 text-yellow-300 border border-yellow-700">
+                <i class="fas fa-exclamation"></i> Low Attendance
+              </span>
+              {% else %}
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-900/50 text-red-300 border border-red-700">
+                <i class="fas fa-ban"></i> Defaulter
+              </span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{{ url_for('super_admin.edit_student', person_id=r.id) }}"
+                 class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-700 hover:bg-gray-600 text-gray-200 transition-colors">
+                <i class="fas fa-user-edit"></i> Edit
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% elif selected_class %}
+  <div class="card text-center py-12">
+    <i class="fas fa-folder-open text-4xl text-gray-600 mb-3 block"></i>
+    <p class="text-gray-400">No students are currently enrolled in this class or no sessions conducted yet.</p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

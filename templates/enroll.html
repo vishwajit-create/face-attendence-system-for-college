@@ -1,0 +1,292 @@
+{% extends 'base.html' %}
+{% block title %}Enroll Student — Face Recognition{% endblock %}
+{% block page_title %}Student Enrollment{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-xl font-bold text-white">Enroll New Student</h2>
+      <p class="text-sm text-gray-400">Capture face photos via live camera or upload photo files</p>
+    </div>
+  </div>
+
+  <form method="POST" action="{{ url_for('main.enroll') }}" enctype="multipart/form-data" class="space-y-6">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+
+    <!-- Personal & Academic Details Card -->
+    <div class="card space-y-4">
+      <h3 class="text-sm font-semibold text-gray-200 uppercase tracking-wider flex items-center gap-2 border-b border-gray-700 pb-3">
+        <i class="fas fa-id-card text-blue-400"></i> Student Information
+      </h3>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="label">Full Name <span class="text-red-400">*</span></label>
+          <input type="text" name="name" required class="input" placeholder="e.g. Rahul Sharma">
+        </div>
+
+        <div>
+          <label class="label">Roll Number</label>
+          <input type="text" name="roll_no" class="input" placeholder="e.g. CS2026-001">
+        </div>
+
+        <div class="sm:col-span-2">
+          <label class="label">Email Address</label>
+          <input type="email" name="email" class="input" placeholder="student@college.edu">
+        </div>
+      </div>
+
+      <!-- Assign to Classes -->
+      {% if classes %}
+      <div>
+        <label class="label mb-2">Assign to Classes</label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-40 overflow-y-auto p-3 bg-gray-900 border border-gray-700 rounded-lg">
+          {% for c in classes %}
+          <label class="flex items-center gap-2.5 p-2 rounded hover:bg-gray-800 cursor-pointer text-sm text-gray-200">
+            <input type="checkbox" name="class_ids" value="{{ c.id }}" class="accent-blue-600 rounded">
+            <span>{{ c.code }} <span class="text-xs text-gray-400">({{ c.name }})</span></span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Face Acquisition Card (Tabs: Live Camera vs File Upload) -->
+    <div class="card space-y-4">
+      <div class="flex items-center justify-between border-b border-gray-700 pb-3">
+        <h3 class="text-sm font-semibold text-gray-200 uppercase tracking-wider flex items-center gap-2">
+          <i class="fas fa-camera text-blue-400"></i> Face Registration Photos
+        </h3>
+
+        <!-- Tab Switcher -->
+        <div class="flex bg-gray-900 p-1 rounded-lg border border-gray-700">
+          <button type="button" id="btnTabWebcam" onclick="switchTab('webcam')"
+                  class="px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white flex items-center gap-2 transition-all">
+            <i class="fas fa-video"></i> Live Camera
+          </button>
+          <button type="button" id="btnTabUpload" onclick="switchTab('upload')"
+                  class="px-3 py-1.5 rounded-md text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-2 transition-all">
+            <i class="fas fa-upload"></i> Upload Photos
+          </button>
+        </div>
+      </div>
+
+      <!-- TAB 1: Live Webcam Capture -->
+      <div id="tabWebcam" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <!-- Webcam Viewport -->
+          <div class="relative bg-black rounded-xl overflow-hidden border border-gray-700 aspect-video flex items-center justify-center">
+            <video id="webcamVideo" autoplay playsinline muted class="w-full h-full object-cover hidden"></video>
+            <canvas id="snapshotCanvas" class="hidden"></canvas>
+
+            <div id="cameraStandby" class="flex flex-col items-center justify-center text-gray-500 p-6 text-center">
+              <i class="fas fa-camera text-5xl mb-3 opacity-30"></i>
+              <p class="text-sm">Click "Start Camera" to initialize your webcam</p>
+            </div>
+          </div>
+
+          <!-- Controls & Instructions -->
+          <div class="flex flex-col justify-between space-y-3">
+            <div class="space-y-2">
+              <button type="button" id="btnStartCamera" onclick="startWebcam()"
+                      class="w-full py-2.5 px-4 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                <i class="fas fa-power-off"></i> <span>Start Camera</span>
+              </button>
+
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" id="btnCaptureOne" onclick="captureSnapshot()" disabled
+                        class="py-2.5 px-3 bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-500 text-white rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2">
+                  <i class="fas fa-camera-retro"></i> <span>Capture Photo</span>
+                </button>
+                <button type="button" id="btnBurst" onclick="captureBurst(5)" disabled
+                        class="py-2.5 px-3 bg-purple-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-500 text-white rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2">
+                  <i class="fas fa-bolt"></i> <span>5-Photo Burst</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="p-3 bg-gray-900 border border-gray-700 rounded-lg text-xs text-gray-300 space-y-1">
+              <p class="font-semibold text-blue-400 flex items-center gap-1.5">
+                <i class="fas fa-info-circle"></i> Enrollment Tip:
+              </p>
+              <p class="text-gray-400">
+                During the 5-photo burst, slightly rotate your head (center, left, right, chin up, smile) to store multi-angle face features for highest accuracy.
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Captured Snapshots Strip -->
+        <div>
+          <h4 class="text-xs font-semibold text-gray-300 uppercase mb-2 flex items-center justify-between">
+            <span>Captured Photos (<span id="sampleCount" class="text-blue-400">0</span>)</span>
+            <button type="button" onclick="clearSnapshots()" class="text-[11px] text-gray-400 hover:text-red-400 transition-colors">Clear All</button>
+          </h4>
+          <div id="snapshotThumbnails" class="grid grid-cols-5 sm:grid-cols-8 gap-2 min-h-[70px] bg-gray-900 p-2.5 rounded-lg border border-gray-700">
+            <span id="noSamplesText" class="col-span-full text-center text-xs text-gray-500 py-4">No snapshots captured yet.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: File Upload -->
+      <div id="tabUpload" class="hidden space-y-4">
+        <div class="border-2 border-dashed border-gray-700 hover:border-blue-500 rounded-xl p-8 text-center transition-colors cursor-pointer bg-gray-900/50"
+             onclick="document.getElementById('fileInput').click()">
+          <i class="fas fa-images text-blue-400 text-3xl mb-3"></i>
+          <p class="text-sm font-semibold text-white">Click or drag photos here</p>
+          <p class="text-xs text-gray-400 mt-1">Select 3–10 photos (.jpg, .png)</p>
+          <input type="file" id="fileInput" name="images" multiple accept="image/*" class="hidden" onchange="previewUploadFiles(this)">
+        </div>
+        <div id="fileThumbnails" class="grid grid-cols-5 sm:grid-cols-8 gap-2"></div>
+      </div>
+
+    </div>
+
+    <!-- Submit Button -->
+    <div class="flex justify-end gap-3 pt-2">
+      <button type="submit" id="btnSubmit"
+              class="btn-primary py-3 px-6 text-sm font-bold shadow-lg shadow-blue-600/30">
+        <i class="fas fa-check-circle"></i> Complete Student Enrollment
+      </button>
+    </div>
+
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let videoStream = null;
+  const capturedSnapshots = [];
+
+  function switchTab(tab) {
+    const tabWebcam = document.getElementById('tabWebcam');
+    const tabUpload = document.getElementById('tabUpload');
+    const btnWebcam = document.getElementById('btnTabWebcam');
+    const btnUpload = document.getElementById('btnTabUpload');
+
+    if (tab === 'webcam') {
+      tabWebcam.classList.remove('hidden');
+      tabUpload.classList.add('hidden');
+      btnWebcam.className = "px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white flex items-center gap-2 transition-all";
+      btnUpload.className = "px-3 py-1.5 rounded-md text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-2 transition-all";
+    } else {
+      tabWebcam.classList.add('hidden');
+      tabUpload.classList.remove('hidden');
+      btnUpload.className = "px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white flex items-center gap-2 transition-all";
+      btnWebcam.className = "px-3 py-1.5 rounded-md text-xs font-semibold text-gray-400 hover:text-white flex items-center gap-2 transition-all";
+    }
+  }
+
+  async function startWebcam() {
+    const video = document.getElementById('webcamVideo');
+    const standby = document.getElementById('cameraStandby');
+    const btnCapture = document.getElementById('btnCaptureOne');
+    const btnBurst = document.getElementById('btnBurst');
+    const btnStart = document.getElementById('btnStartCamera');
+
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' } });
+      video.srcObject = videoStream;
+      video.classList.remove('hidden');
+      standby.classList.add('hidden');
+      btnCapture.disabled = false;
+      btnBurst.disabled = false;
+      btnStart.innerHTML = '<i class="fas fa-check"></i> <span>Camera Active</span>';
+      btnStart.classList.replace('bg-gray-700', 'bg-green-600');
+    } catch (err) {
+      alert("Could not access camera: " + err.message + "\n\nNote: If accessing over LAN IP, modern browsers require HTTPS or http://localhost:5000.");
+    }
+  }
+
+  function captureSnapshot() {
+    const video = document.getElementById('webcamVideo');
+    const canvas = document.getElementById('snapshotCanvas');
+    if (!videoStream || video.videoWidth === 0) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    addSnapshotThumbnail(dataUrl);
+  }
+
+  function captureBurst(count = 5) {
+    const btnBurst = document.getElementById('btnBurst');
+    const btnCapture = document.getElementById('btnCaptureOne');
+    btnBurst.disabled = true;
+    btnCapture.disabled = true;
+
+    let taken = 0;
+    const interval = setInterval(() => {
+      captureSnapshot();
+      taken++;
+      btnBurst.innerHTML = `<i class="fas fa-bolt fa-spin"></i> <span>Burst (${taken}/${count})</span>`;
+      if (taken >= count) {
+        clearInterval(interval);
+        btnBurst.innerHTML = '<i class="fas fa-bolt"></i> <span>5-Photo Burst</span>';
+        btnBurst.disabled = false;
+        btnCapture.disabled = false;
+      }
+    }, 600);
+  }
+
+  function addSnapshotThumbnail(dataUrl) {
+    capturedSnapshots.push(dataUrl);
+    const container = document.getElementById('snapshotThumbnails');
+    const noText = document.getElementById('noSamplesText');
+    if (noText) noText.remove();
+
+    document.getElementById('sampleCount').textContent = capturedSnapshots.length;
+
+    const thumbWrapper = document.createElement('div');
+    thumbWrapper.className = "relative rounded-lg overflow-hidden border border-blue-500/50 aspect-square group";
+
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.className = "w-full h-full object-cover";
+
+    // Hidden input for form submission
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = "hidden";
+    hiddenInput.name = "webcam_snapshots[]";
+    hiddenInput.value = dataUrl;
+
+    thumbWrapper.appendChild(img);
+    thumbWrapper.appendChild(hiddenInput);
+    container.appendChild(thumbWrapper);
+  }
+
+  function clearSnapshots() {
+    capturedSnapshots.length = 0;
+    const container = document.getElementById('snapshotThumbnails');
+    container.innerHTML = '<span id="noSamplesText" class="col-span-full text-center text-xs text-gray-500 py-4">No snapshots captured yet.</span>';
+    document.getElementById('sampleCount').textContent = '0';
+  }
+
+  function previewUploadFiles(input) {
+    const container = document.getElementById('fileThumbnails');
+    container.innerHTML = '';
+    if (input.files) {
+      Array.from(input.files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          const div = document.createElement('div');
+          div.className = "relative rounded-lg overflow-hidden border border-gray-700 aspect-square";
+          div.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`;
+          container.appendChild(div);
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  }
+</script>
+{% endblock %}

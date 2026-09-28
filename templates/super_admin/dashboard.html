@@ -1,0 +1,127 @@
+﻿{% extends 'base.html' %}
+{% block title %}Super Admin Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Stat Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+  <!-- Total Classes -->
+  <div class="bg-gray-800 rounded-2xl p-6 flex items-center gap-4 shadow-lg border border-gray-700 hover:border-blue-600 transition-colors duration-200">
+    <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-blue-600/20 flex items-center justify-center">
+      <i class="fas fa-school text-blue-400 text-2xl"></i>
+    </div>
+    <div>
+      <p class="text-gray-400 text-xs font-semibold uppercase tracking-widest">Total Classes</p>
+      <p class="text-white text-3xl font-bold mt-0.5">{{ stats.classes }}</p>
+    </div>
+  </div>
+
+  <!-- Total Teachers -->
+  <div class="bg-gray-800 rounded-2xl p-6 flex items-center gap-4 shadow-lg border border-gray-700 hover:border-indigo-500 transition-colors duration-200">
+    <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+      <i class="fas fa-chalkboard-teacher text-indigo-400 text-2xl"></i>
+    </div>
+    <div>
+      <p class="text-gray-400 text-xs font-semibold uppercase tracking-widest">Total Teachers</p>
+      <p class="text-white text-3xl font-bold mt-0.5">{{ stats.teachers }}</p>
+    </div>
+  </div>
+
+  <!-- Enrolled Students -->
+  <div class="bg-gray-800 rounded-2xl p-6 flex items-center gap-4 shadow-lg border border-gray-700 hover:border-emerald-500 transition-colors duration-200">
+    <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+      <i class="fas fa-user-graduate text-emerald-400 text-2xl"></i>
+    </div>
+    <div>
+      <p class="text-gray-400 text-xs font-semibold uppercase tracking-widest">Enrolled Students</p>
+      <p class="text-white text-3xl font-bold mt-0.5">{{ stats.students }}</p>
+    </div>
+  </div>
+
+  <!-- Sessions Today -->
+  <div class="bg-gray-800 rounded-2xl p-6 flex items-center gap-4 shadow-lg border border-gray-700 hover:border-amber-500 transition-colors duration-200">
+    <div class="flex-shrink-0 w-14 h-14 rounded-xl bg-amber-500/20 flex items-center justify-center">
+      <i class="fas fa-satellite-dish text-amber-400 text-2xl"></i>
+    </div>
+    <div>
+      <p class="text-gray-400 text-xs font-semibold uppercase tracking-widest">Sessions Today</p>
+      <p class="text-white text-3xl font-bold mt-0.5">{{ stats.sessions_today }}</p>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Sessions -->
+<div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700">
+  <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-history text-blue-400"></i>
+      <h2 class="text-white font-semibold text-lg">Recent Sessions</h2>
+    </div>
+    <span class="text-gray-400 text-sm">{{ recent_sessions | length }} session{{ 's' if recent_sessions | length != 1 }}</span>
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="bg-gray-900/60">
+          <th class="text-left px-6 py-3 text-gray-400 font-semibold uppercase tracking-wider text-xs">Session ID</th>
+          <th class="text-left px-6 py-3 text-gray-400 font-semibold uppercase tracking-wider text-xs">Class</th>
+          <th class="text-left px-6 py-3 text-gray-400 font-semibold uppercase tracking-wider text-xs">Teacher</th>
+          <th class="text-left px-6 py-3 text-gray-400 font-semibold uppercase tracking-wider text-xs">Started At</th>
+          <th class="text-left px-6 py-3 text-gray-400 font-semibold uppercase tracking-wider text-xs">Status</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-700">
+        {% if recent_sessions %}
+          {% for session in recent_sessions %}
+          <tr class="hover:bg-gray-700/40 transition-colors duration-150">
+            <td class="px-6 py-4">
+              <span class="font-mono text-blue-400 text-xs bg-blue-900/30 px-2 py-1 rounded">
+                #{{ session.id }}
+              </span>
+            </td>
+            <td class="px-6 py-4">
+              <div>
+                <p class="text-white font-medium">{{ session.class_name }}</p>
+                <p class="text-gray-500 text-xs mt-0.5">{{ session.class_code }}</p>
+              </div>
+            </td>
+            <td class="px-6 py-4">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-full bg-indigo-600/30 flex items-center justify-center flex-shrink-0">
+                  <i class="fas fa-user text-indigo-400 text-xs"></i>
+                </div>
+                <span class="text-gray-200">{{ session.teacher_name }}</span>
+              </div>
+            </td>
+            <td class="px-6 py-4 text-gray-400 text-xs">
+              <i class="fas fa-clock mr-1"></i>{{ session.started_at }}
+            </td>
+            <td class="px-6 py-4">
+              {% if session.is_active %}
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>Live
+                </span>
+              {% else %}
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-gray-600/30 text-gray-400 border border-gray-600/40">
+                  <span class="w-1.5 h-1.5 rounded-full bg-gray-500"></span>Ended
+                </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="5" class="px-6 py-16 text-center">
+              <div class="flex flex-col items-center gap-3">
+                <i class="fas fa-inbox text-gray-600 text-4xl"></i>
+                <p class="text-gray-500">No recent sessions found.</p>
+              </div>
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

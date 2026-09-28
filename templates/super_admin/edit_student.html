@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block title %}Edit Student — Super Admin{% endblock %}
+{% block page_title %}Edit Student Profile{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-xl font-bold text-white">Edit Student: {{ person.name }}</h2>
+      <p class="text-sm text-gray-400">Update academic records and assigned classes</p>
+    </div>
+    <a href="{{ url_for('super_admin.students') }}" class="btn-secondary">
+      <i class="fas fa-arrow-left"></i> Back to List
+    </a>
+  </div>
+
+  <div class="card">
+    <form method="POST" action="{{ url_for('super_admin.edit_student', person_id=person.id) }}" class="space-y-5">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label class="label">Full Name <span class="text-red-400">*</span></label>
+          <input type="text" name="name" value="{{ person.name }}" required class="input" placeholder="e.g. John Doe">
+        </div>
+
+        <div>
+          <label class="label">Roll Number</label>
+          <input type="text" name="roll_no" value="{{ person.roll_no or '' }}" class="input" placeholder="e.g. CS2026-001">
+        </div>
+
+        <div>
+          <label class="label">Email Address</label>
+          <input type="email" name="email" value="{{ person.email or '' }}" class="input" placeholder="student@college.edu">
+        </div>
+
+        <div>
+          <label class="label">Phone Number</label>
+          <input type="text" name="phone" value="{{ person.phone or '' }}" class="input" placeholder="+91 9876543210">
+        </div>
+
+        <div>
+          <label class="label">Department</label>
+          <select name="department_id" class="input">
+            <option value="">-- Select Department --</option>
+            {% for d in departments %}
+            <option value="{{ d.id }}" {% if person.department_id == d.id %}selected{% endif %}>
+              {{ d.name }} ({{ d.code }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="label">Semester</label>
+          <select name="semester" class="input">
+            <option value="">-- Select Semester --</option>
+            {% for s in range(1, 9) %}
+            <option value="{{ s }}" {% if person.semester == s %}selected{% endif %}>Semester {{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Class Assignments -->
+      <div>
+        <label class="label mb-2">Class Enrollments</label>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-3 bg-gray-900 border border-gray-700 rounded-lg">
+          {% for c in classes %}
+          <label class="flex items-center gap-2.5 p-2 rounded hover:bg-gray-800 cursor-pointer text-sm text-gray-200">
+            <input type="checkbox" name="class_ids" value="{{ c.id }}"
+                   {% if c.id in enrolled_ids %}checked{% endif %}
+                   class="accent-blue-600 rounded">
+            <span>{{ c.code }} <span class="text-xs text-gray-400">({{ c.name }})</span></span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="pt-4 border-t border-gray-700 flex justify-end gap-3">
+        <a href="{{ url_for('super_admin.students') }}" class="btn-secondary">Cancel</a>
+        <button type="submit" class="btn-primary">
+          <i class="fas fa-save"></i> Save Changes
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Danger Zone Card -->
+  <div class="card border-red-800/60 bg-red-950/20 space-y-4">
+    <h3 class="text-sm font-semibold text-red-400 uppercase tracking-wider flex items-center gap-2 border-b border-red-800/40 pb-3">
+      <i class="fas fa-exclamation-triangle"></i> Enrollment & Student Management Danger Zone
+    </h3>
+
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-2 border-b border-gray-800">
+      <div>
+        <p class="text-sm font-medium text-white">Reset Face Biometric Data</p>
+        <p class="text-xs text-gray-400">Deletes all stored face embeddings so the student can be re-enrolled with fresh photos.</p>
+      </div>
+      <form method="POST" action="{{ url_for('super_admin.clear_student_faces', person_id=person.id) }}"
+            onsubmit="return confirm('Clear all face photos and embeddings for {{ person.name }}? The student record will be preserved.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+        <button type="submit" class="btn-secondary text-yellow-400 hover:text-white hover:bg-yellow-600/30 text-xs">
+          <i class="fas fa-eraser"></i> Clear Face Data
+        </button>
+      </form>
+    </div>
+
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 py-2">
+      <div>
+        <p class="text-sm font-medium text-white">Permanently Delete Student</p>
+        <p class="text-xs text-gray-400">Permanently removes student, class enrollments, face models, and logs.</p>
+      </div>
+      <form method="POST" action="{{ url_for('super_admin.delete_student', person_id=person.id) }}"
+            onsubmit="return confirm('Permanently delete {{ person.name }}? This action CANNOT be undone.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token is defined else '' }}">
+        <button type="submit" class="btn-danger text-xs">
+          <i class="fas fa-trash-alt"></i> Delete Student
+        </button>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
