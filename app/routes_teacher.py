@@ -51,6 +51,24 @@ def dashboard():
     return render_template("teacher/dashboard.html", classes=classes, active_sessions=active_sessions)
 
 
+def _format_date_parts(dt_val):
+    if not dt_val:
+        now = datetime.now()
+        return now.strftime("%d %b %Y"), now.strftime("%a"), now.strftime("%Y-%m-%d")
+    if isinstance(dt_val, str):
+        try:
+            clean = dt_val.split(".")[0].replace("Z", "").replace("T", " ")
+            dt_obj = datetime.strptime(clean, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            try:
+                dt_obj = datetime.strptime(clean[:10], "%Y-%m-%d")
+            except Exception:
+                dt_obj = datetime.now()
+    else:
+        dt_obj = dt_val
+    return dt_obj.strftime("%d %b %Y"), dt_obj.strftime("%a"), dt_obj.strftime("%Y-%m-%d")
+
+
 # ── Class Detail ──────────────────────────────────────────────────────────────
 
 @teacher_bp.route("/classes/<int:class_id>")
@@ -60,14 +78,22 @@ def class_detail(class_id):
     if not cls:
         flash("Class not found.", "danger")
         return redirect(url_for("teacher.dashboard"))
+    cls_data = cls[0]
 
+    # Total sessions conducted
     total_sessions = run_query(
         "SELECT COUNT(*) AS c FROM sessions WHERE class_id=%s;", (class_id,)
     )[0]["c"]
 
-    students = run_query("""
+    # Total class days (from class record or sessions count)
+    total_class_days = cls_data.get("total_working_days") or total_sessions or 0
+    if total_class_days == 0 and total_sessions > 0:
+        total_class_days = total_sessions
+
+    # All students enrolled in this class
+    students_raw = run_query("""
         SELECT p.id, p.name, p.roll_no, p.email,
-               COUNT(DISTINCT al.session_id) AS attended
+               COUNT(DISTINCT al.session_id) AS present_days
         FROM class_students cs
         JOIN people p ON p.id = cs.person_id
         LEFT JOIN attendance_log al ON al.person_id = p.id AND al.class_id = %s
@@ -75,22 +101,91 @@ def class_detail(class_id):
         GROUP BY p.id ORDER BY p.name;
     """, (class_id, class_id))
 
-    for s in students:
-        s["percentage"] = round(
-            (s["attended"] / total_sessions * 100) if total_sessions > 0 else 0, 1
-        )
-        s["status"] = ("✅ Good" if s["percentage"] >= 75 else
-                       ("⚠️ Low" if s["percentage"] >= 50 else "❌ Critical"))
+    total_enrolled = len(students_raw)
 
-    recent_sessions = run_query("""
-        SELECT s.id, s.label, s.started_at, s.ended_at, s.is_active,
-               COUNT(al.id) AS present_count
+    students = []
+    for s in students_raw:
+        p_days = s["present_days"] or 0
+        denom = max(total_class_days, p_days, 1)
+        a_days = max(0, denom - p_days)
+        pct = round((p_days / denom * 100), 2)
+        if pct >= 75:
+            status = "Good"
+            badge_class = "bg-emerald-950/60 text-emerald-400 border border-emerald-700/60"
+        elif pct >= 60:
+            status = "Average"
+            badge_class = "bg-amber-950/60 text-amber-400 border border-amber-700/60"
+        else:
+            status = "Critical"
+            badge_class = "bg-rose-950/60 text-rose-400 border border-rose-700/60"
+
+        students.append({
+            "id": s["id"],
+            "name": s["name"],
+            "roll_no": s["roll_no"] or "—",
+            "present_days": p_days,
+            "absent_days": a_days,
+            "percentage": f"{pct:.2f}%",
+            "status": status,
+            "badge_class": badge_class,
+        })
+
+    # Attendance by Date (right column)
+    sessions_raw = run_query("""
+        SELECT s.id, s.label, s.started_at, s.is_active,
+               COUNT(DISTINCT al.person_id) AS present_count
         FROM sessions s
         LEFT JOIN attendance_log al ON al.session_id = s.id
-        WHERE s.class_id = %s AND s.teacher_id = %s
+        WHERE s.class_id = %s
         GROUP BY s.id
-        ORDER BY s.started_at DESC LIMIT 20;
-    """, (class_id, int(current_user.id)))
+        ORDER BY s.started_at DESC LIMIT 30;
+    """, (class_id,))
+
+    attendance_by_date = []
+    for sess in sessions_raw:
+        date_str, day_name, ymd = _format_date_parts(sess["started_at"])
+        p_cnt = sess["present_count"] or 0
+        is_completed = (p_cnt >= total_enrolled and total_enrolled > 0)
+        attendance_by_date.append({
+            "session_id": sess["id"],
+            "date": date_str,
+            "day": day_name,
+            "ymd": ymd,
+            "present_total": f"{p_cnt} / {total_enrolled}",
+            "status": "Completed" if is_completed else "Partial",
+            "status_class": "bg-emerald-950/60 text-emerald-400 border border-emerald-700/60" if is_completed else "bg-amber-950/60 text-amber-400 border border-amber-700/60",
+            "is_active": sess["is_active"],
+        })
+
+    # Top Metric Cards: Present, Absent, Leave for selected or latest date
+    selected_date_display = datetime.now().strftime("%d %b %Y")
+    metric_present = 0
+    metric_absent = 0
+    metric_leave = 0
+
+    if attendance_by_date:
+        latest = sessions_raw[0]
+        metric_present = latest["present_count"] or 0
+        metric_absent = max(0, total_enrolled - metric_present)
+        date_str, _, _ = _format_date_parts(latest["started_at"])
+        selected_date_display = date_str
+    elif total_enrolled > 0:
+        metric_absent = total_enrolled
+
+    denom_metric = max(total_enrolled, 1)
+    present_pct = round((metric_present / denom_metric * 100), 1)
+    absent_pct = round((metric_absent / denom_metric * 100), 1)
+    leave_pct = round((metric_leave / denom_metric * 100), 1)
+
+    metrics = {
+        "present": metric_present,
+        "present_pct": present_pct,
+        "absent": metric_absent,
+        "absent_pct": absent_pct,
+        "leave": metric_leave,
+        "leave_pct": leave_pct,
+        "selected_date": selected_date_display,
+    }
 
     active_session = run_query(
         "SELECT * FROM sessions WHERE class_id=%s AND teacher_id=%s AND is_active=1 ORDER BY started_at DESC LIMIT 1;",
@@ -100,17 +195,18 @@ def class_detail(class_id):
 
     return render_template(
         "teacher/class_detail.html",
-        cls=cls[0],
+        cls=cls_data,
+        total_class_days=total_class_days,
         students=students,
-        total_sessions=total_sessions,
-        recent_sessions=recent_sessions,
+        metrics=metrics,
+        attendance_by_date=attendance_by_date,
         active_session=active_session,
     )
 
 
 # ── Session Management ────────────────────────────────────────────────────────
 
-@teacher_bp.route("/classes/<int:class_id>/session/start", methods=["POST"])
+@teacher_bp.route("/classes/<int:class_id>/session/start", methods=["GET", "POST"])
 @login_required
 def start_session(class_id):
     cls = run_query("SELECT * FROM classes WHERE id=%s;", (class_id,))
@@ -118,11 +214,13 @@ def start_session(class_id):
         flash("Class not found.", "danger")
         return redirect(url_for("teacher.dashboard"))
 
-    # End any existing active session for this class+teacher
-    run_write(
-        "UPDATE sessions SET is_active=0, ended_at=CURRENT_TIMESTAMP WHERE class_id=%s AND teacher_id=%s AND is_active=1;",
+    active = run_query(
+        "SELECT id FROM sessions WHERE class_id=%s AND teacher_id=%s AND is_active=1 ORDER BY started_at DESC LIMIT 1;",
         (class_id, int(current_user.id)),
     )
+    if active:
+        session_id = active[0]["id"]
+        return redirect(url_for("teacher.take_attendance", class_id=class_id, session_id=session_id))
 
     session_id = f"{cls[0]['code']}-{datetime.now().strftime('%Y-%m-%d-%I%p')}-{uuid.uuid4().hex[:6]}"
     label = f"{cls[0]['name']} — {datetime.now().strftime('%d %b %Y %I:%M %p')}"
