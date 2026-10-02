@@ -57,14 +57,15 @@ def process_enrollment(person_id: int, image_sources) -> int:
             logger.warning(f"Invalid image at index {idx} for person {person_id}")
             continue
 
-        boxes = detector.detect(frame)
+        from app.detector import detect_faces
+        boxes = detect_faces(frame, conf_threshold=0.6)
         if len(boxes) == 0:
             logger.warning(f"No face detected in image #{idx + 1} for person {person_id}")
             continue
 
-        # Pick largest box
-        box = max(boxes, key=lambda b: b[2] * b[3])
-        x, y, w, h = int(box[0]), int(box[1]), int(box[2]), int(box[3])
+        # Pick largest face
+        box = max(boxes, key=lambda b: b.w * b.h)
+        x, y, w, h = box.x, box.y, box.w, box.h
         pad = int(min(w, h) * 0.1)
         x1 = max(0, x - pad)
         y1 = max(0, y - pad)
@@ -72,7 +73,7 @@ def process_enrollment(person_id: int, image_sources) -> int:
         y2 = min(frame.shape[0], y + h + pad)
         face_crop = frame[y1:y2, x1:x2]
 
-        embedding = encode_face(face_crop)
+        embedding = encode_face(face_crop, raw_face=box.raw_face, full_frame=frame)
         if embedding is None:
             logger.warning(f"Failed to generate embedding for image #{idx + 1}")
             continue

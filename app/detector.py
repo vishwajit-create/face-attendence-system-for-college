@@ -23,6 +23,7 @@ class BoundingBox:
     h: int
     confidence: float
     landmarks: Optional[np.ndarray] = None  # 5 keypoints: [right_eye, left_eye, nose, right_mouth, left_mouth]
+    raw_face: Optional[np.ndarray] = None   # 15-element array from YuNet for SFace alignment
 
     @property
     def box_tuple(self) -> Tuple[int, int, int, int]:
@@ -98,10 +99,12 @@ def detect_faces(
 
     height, width = frame.shape[:2]
     boxes: List[BoundingBox] = []
+    if detector is None:
+        detector = load_detector(score_threshold=conf_threshold)
 
     if detector is not None:
         try:
-            # Update input size to match the incoming frame dimensions
+            detector.setScoreThreshold(conf_threshold)
             detector.setInputSize((width, height))
             _, faces = detector.detect(frame)
 
@@ -129,7 +132,7 @@ def detect_faces(
                         dtype=np.float32,
                     )
 
-                    boxes.append(BoundingBox(x=x, y=y, w=w, h=h, confidence=score, landmarks=landmarks))
+                    boxes.append(BoundingBox(x=x, y=y, w=w, h=h, confidence=score, landmarks=landmarks, raw_face=face))
             return boxes
         except Exception as e:
             logger.warning(f"YuNet detection failed: {e}. Falling back to Haar Cascade.")

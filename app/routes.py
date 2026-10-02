@@ -143,15 +143,20 @@ def api_scan_frame_legacy():
     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     if frame is None:
         return jsonify({"faces": []})
-    detector = FaceDetector()
-    boxes = detector.detect(frame)
+    from app.detector import detect_faces
+    boxes = detect_faces(frame, conf_threshold=0.6)
     results = []
     for box in boxes:
-        x, y, w, h = box[:4]
-        face_crop = frame[y:y+h, x:x+w]
+        x, y, w, h = box.x, box.y, box.w, box.h
+        pad = int(min(w, h) * 0.1)
+        x1 = max(0, x - pad)
+        y1 = max(0, y - pad)
+        x2 = min(frame.shape[1], x + w + pad)
+        y2 = min(frame.shape[0], y + h + pad)
+        face_crop = frame[y1:y2, x1:x2]
         if face_crop.size == 0:
             continue
-        embedding = encode_face(face_crop)
+        embedding = encode_face(face_crop, raw_face=box.raw_face, full_frame=frame)
         if embedding is None:
             continue
         match = find_best_match(embedding)

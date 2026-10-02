@@ -19,7 +19,7 @@ CAMERA_WIDTH = int(os.getenv("CAMERA_WIDTH", 640))
 CAMERA_HEIGHT = int(os.getenv("CAMERA_HEIGHT", 480))
 
 # ── Face Recognition ──────────────────────────────────────────
-MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", 0.62))
+MATCH_THRESHOLD = float(os.getenv("MATCH_THRESHOLD", 0.363))
 
 # ── Temporal Debounce ─────────────────────────────────────────
 DEBOUNCE_FRAMES = int(os.getenv("DEBOUNCE_FRAMES", 5))
@@ -40,6 +40,7 @@ FLASK_PORT = int(os.getenv("FLASK_PORT", 5000))
 MODELS_DIR = BASE_DIR / "models"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 YUNET_MODEL_PATH = os.getenv("YUNET_MODEL_PATH", str(MODELS_DIR / "face_detection_yunet_2023mar.onnx"))
+SFACE_MODEL_PATH = os.getenv("SFACE_MODEL_PATH", str(MODELS_DIR / "face_recognition_sface_2021dec.onnx"))
 DLIB_PREDICTOR_PATH = os.getenv("DLIB_PREDICTOR_PATH", str(MODELS_DIR / "shape_predictor_68_face_landmarks.dat"))
 
 UNKNOWN_FACE_DIR = BASE_DIR / "static" / "unknown_faces"
